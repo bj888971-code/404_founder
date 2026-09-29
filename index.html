@@ -656,11 +656,28 @@
             }
         }
 
+        // [PERBAIKAN] Fungsi untuk membaca format tanggal dengan lebih pintar
         function formatDateIndo(dateStr) {
             if (!dateStr || dateStr === '-') return '-';
             try {
-                const parts = String(dateStr).split('-');
-                return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr;
+                let str = String(dateStr).trim();
+                // Jika formatnya ISO String e.g. 2024-01-20T17:00:00Z
+                if (str.includes('T')) {
+                    str = str.split('T')[0];
+                }
+                
+                const parts = str.split(/[-/]/);
+                if (parts.length === 3) {
+                    // Deteksi jika parts[0] adalah YYYY (format YYYY-MM-DD)
+                    if (parts[0].length === 4) {
+                        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    } 
+                    // Deteksi jika parts[2] adalah YYYY (format DD-MM-YYYY atau DD/MM/YYYY)
+                    else if (parts[2].length === 4) {
+                        return `${parts[0]}/${parts[1]}/${parts[2]}`;
+                    }
+                }
+                return dateStr;
             } catch (e) {
                 return dateStr;
             }
@@ -676,22 +693,59 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // [PERBAIKAN] Fungsi logika usia untuk membaca format DD-MM-YYYY tanpa memunculkan Invalid Date / Usia 0
         function calculateAge(birthDateStr) {
-            if (!birthDateStr) return 0;
+            if (!birthDateStr || birthDateStr === '-') return 0;
             try {
-                const birth = new Date(birthDateStr);
+                let str = String(birthDateStr).trim();
+                let birth;
+                
+                // Ekstrak string jika ada format ISO time (T00:00:00Z)
+                if (str.includes('T')) {
+                    str = str.split('T')[0];
+                }
+                
+                // Gunakan regex agar mendukung delimiter "-" dan "/"
+                const parts = str.split(/[-/]/);
+                
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        // Format: YYYY-MM-DD
+                        birth = new Date(parts[0], parseInt(parts[1]) - 1, parts[2]);
+                    } else if (parts[2].length === 4) {
+                        // Format: DD-MM-YYYY atau DD/MM/YYYY (Sangat Umum Di Indonesia/Google Sheets)
+                        birth = new Date(parts[2], parseInt(parts[1]) - 1, parts[0]);
+                    } else {
+                        // Fallback jika aneh
+                        birth = new Date(str);
+                    }
+                } else {
+                    birth = new Date(str); // Fallback ke parsing default JS
+                }
+
                 if (isNaN(birth.getTime())) return 0;
+
                 const now = new Date();
                 let age = now.getFullYear() - birth.getFullYear();
                 const monthDiff = now.getMonth() - birth.getMonth();
+                
                 if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
                     age--;
                 }
+                
                 return age < 0 ? 0 : age;
             } catch(e) {
                 return 0;
             }
         }
+
+        // [BARU] Fungsi wrapper pemanggilan usia yang aman untuk digunakan di charts dan tabel
+        const getUsiaSafe = (warga) => {
+            if (warga.usia !== undefined && warga.usia !== null && String(warga.usia).trim() !== '') {
+                return parseInt(warga.usia, 10);
+            }
+            return calculateAge(warga.tanggalLahir);
+        };
 
         function fetchDataFromSheet() {
             if (!API_URL || API_URL.includes("YOUR_APPS_SCRIPT")) {
@@ -918,7 +972,9 @@
 
                 const isPemilih = warga.statusPemilih === 'Pemilih';
                 const ketVal = warga.keterangan || '';
-                const usiaVal = warga.usia !== undefined && warga.usia !== '' ? warga.usia : calculateAge(warga.tanggalLahir);
+                
+                // Menggunakan fungsi getUsiaSafe untuk memastikan umur dikalkulasi secara benar
+                const usiaVal = getUsiaSafe(warga);
 
                 html += `
                     <tr class="transition hover:bg-slate-50 ${borderClass}">
@@ -1170,18 +1226,8 @@
                     data: {
                         labels: [],
                         datasets: [
-                            {
-                                label: 'Pemilih',
-                                data: [],
-                                backgroundColor: '#10b981',
-                                borderRadius: 4
-                            },
-                            {
-                                label: 'Bukan Pemilih',
-                                data: [],
-                                backgroundColor: '#f43f5e',
-                                borderRadius: 4
-                            }
+                            { label: 'Pemilih', data: [], backgroundColor: '#10b981', borderRadius: 4 },
+                            { label: 'Bukan Pemilih', data: [], backgroundColor: '#f43f5e', borderRadius: 4 }
                         ]
                     },
                     options: {
@@ -1191,11 +1237,7 @@
                         plugins: {
                             legend: { display: false },
                             tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return ` ${context.dataset.label}: ${context.parsed.y} Warga`;
-                                    }
-                                }
+                                callbacks: { label: function(context) { return ` ${context.dataset.label}: ${context.parsed.y} Warga`; } }
                             }
                         },
                         scales: {
@@ -1262,10 +1304,10 @@
 
             if (chartUmurInstance) {
                 chartUmurInstance.data.datasets[0].data = [
-                    data.filter(w => (w.usia !== undefined ? w.usia : calculateAge(w.tanggalLahir)) < 17).length,
-                    data.filter(w => { const u = w.usia !== undefined ? w.usia : calculateAge(w.tanggalLahir); return u >= 17 && u <= 30; }).length,
-                    data.filter(w => { const u = w.usia !== undefined ? w.usia : calculateAge(w.tanggalLahir); return u >= 31 && u <= 50; }).length,
-                    data.filter(w => (w.usia !== undefined ? w.usia : calculateAge(w.tanggalLahir)) > 50).length
+                    data.filter(w => getUsiaSafe(w) < 17).length,
+                    data.filter(w => { const u = getUsiaSafe(w); return u >= 17 && u <= 30; }).length,
+                    data.filter(w => { const u = getUsiaSafe(w); return u >= 31 && u <= 50; }).length,
+                    data.filter(w => getUsiaSafe(w) > 50).length
                 ];
                 chartUmurInstance.update();
             }
@@ -1409,7 +1451,7 @@
                         item.nama || '-', 
                         item.tempatLahir || '-', 
                         formatDateIndo(item.tanggalLahir), 
-                        item.usia !== undefined ? item.usia : calculateAge(item.tanggalLahir), 
+                        getUsiaSafe(item), // Pemanggilan helper logika umur yang aman di PDF Export
                         item.jk || '-', 
                         item.rt || '-', 
                         item.tps || '-', 
