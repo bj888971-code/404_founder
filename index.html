@@ -52,8 +52,8 @@
         }
     </script>
 
-    <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 transition-all duration-500">
-        <div id="login-card" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-slate-200 text-center relative overflow-hidden">
+    <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4 transition-all duration-500 bg-cover bg-center" style="background-image: linear-gradient(rgba(15, 23, 42, 0.55), rgba(15, 23, 42, 0.75)), url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=1920');">
+        <div id="login-card" class="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 border border-white/20 text-center relative overflow-hidden">
             <div class="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
             <div class="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-600/30 text-white">
                 <i class="fa-solid fa-lock text-2xl"></i>
@@ -700,7 +700,15 @@
             }
             showToast("Mensinkronkan data dengan Google Sheet...");
             fetch(API_URL + "?action=get")
-                .then(res => res.json())
+                .then(async res => {
+                    const text = await res.text();
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error("Respon bukan JSON yang valid:", text);
+                        throw new Error("Respon server bukan format JSON (kemungkinan error HTML/CORS)");
+                    }
+                })
                 .then(res => {
                     if (res.status === "success" && res.data) {
                         dataWarga = res.data;
