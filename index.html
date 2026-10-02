@@ -35,6 +35,10 @@
         // Kata sandi '040487' disimpan dalam bentuk Hash SHA-256 agar aman
         const APP_PASSWORD_HASH = "7e4c34d9326e0b784a0c8b66e33052166662e36125a0733d98d41584e27f05eb";
 
+        // Konfigurasi Cache Storage Key
+        const CACHE_KEY = "DATA_WARGA_CACHE_V2";
+        const CACHE_TIME_KEY = "DATA_WARGA_CACHE_TIME_V2";
+
         // Fungsi enkripsi hash SHA-256 menggunakan Web Crypto API dengan fallback aman
         async function hashString(str) {
             try {
@@ -124,7 +128,11 @@
                 </button>
             </nav>
 
-            <div class="p-4 border-t border-slate-800">
+            <div class="p-4 border-t border-slate-800 space-y-2">
+                <button onclick="clearAppCache()" class="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-900 font-medium text-xs transition border border-amber-500/20">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Bersihkan Cache Lokal</span>
+                </button>
                 <button onclick="handleLogout()" class="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white font-medium text-xs transition">
                     <i class="fa-solid fa-right-from-bracket"></i>
                     <span>Kunci Aplikasi</span>
@@ -145,9 +153,15 @@
                 </div>
 
                 <div class="flex items-center space-x-2">
-                    <button onclick="fetchDataFromSheet()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
-                        <i class="fa-solid fa-rotate"></i>
-                        <span class="hidden sm:inline">Sinkronisasi</span>
+                    <!-- Indikator Cache -->
+                    <div id="cache-status-badge" class="hidden sm:flex items-center bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-help" title="Status Cache Lokal">
+                        <i class="fa-solid fa-bolt text-amber-500 mr-1.5"></i>
+                        <span id="cache-time-text">Cache Aktif</span>
+                    </div>
+
+                    <button onclick="fetchDataFromSheet(true)" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border border-indigo-200" title="Paksa Sinkronisasi Ulang dari Server">
+                        <i class="fa-solid fa-rotate text-indigo-600"></i>
+                        <span class="hidden sm:inline">Sinkronkan Data</span>
                     </button>
                     <button onclick="openAddWargaModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 shadow-sm transition">
                         <i class="fa-solid fa-plus"></i>
@@ -344,39 +358,35 @@
                 </div>
 
                 <div id="view-rincian" class="space-y-6 hidden">
-                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <div>
-                                <h3 class="font-bold text-slate-800 text-sm flex items-center">
-                                    <i class="fa-solid fa-clipboard-list text-amber-500 mr-2"></i>
-                                    Tabel Rincian Keterangan Pemilih per RT (RT 001 - RT 036)
-                                </h3>
-                                <p class="text-xs text-slate-500 mt-0.5">Rekapitulasi jumlah warga berdasarkan kategori Keterangan di masing-masing RT.</p>
-                            </div>
-                            <div class="flex flex-wrap items-center space-x-2 w-full sm:w-auto">
-                                <select id="rincian-filter-status" onchange="renderRincianPemilih()" class="py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                    <option value="ALL">-- Semua Status Pemilih --</option>
-                                    <option value="Pemilih">Khusus Pemilih</option>
-                                    <option value="Bukan Pemilih">Khusus Bukan Pemilih</option>
-                                </select>
-                                <input type="text" id="rincian-search" onkeyup="renderRincianPemilih()" placeholder="Cari Keterangan..." class="py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <button onclick="exportRincianToPDF()" class="py-2 px-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 shadow-sm">
-                                    <i class="fa-solid fa-file-pdf"></i>
-                                    <span>Download PDF (Landscape)</span>
-                                </button>
-                            </div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-sm flex items-center">
+                                <i class="fa-solid fa-clipboard-list text-amber-500 mr-2"></i>
+                                Tabel Rincian Pemilih per TPS (TPS 01 & TPS 02)
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Rekapitulasi jumlah warga per kategori Keterangan dan RT untuk TPS 01 & TPS 02.</p>
                         </div>
-
-                        <div class="overflow-x-auto min-h-[350px] relative p-1">
-                            <table class="w-full text-xs text-left text-slate-700 border-collapse border border-black">
-                                <thead class="bg-slate-900 text-white uppercase font-bold text-[11px] tracking-wider sticky top-0 z-10">
-                                    <tr id="rincian-table-header"></tr>
-                                </thead>
-                                <tbody id="rincian-table-body"></tbody>
-                                <tfoot id="rincian-table-footer" class="bg-slate-100 font-bold border-t-2 border-black text-slate-900"></tfoot>
-                            </table>
+                        <div class="flex flex-wrap items-center space-x-2 w-full sm:w-auto">
+                            <select id="rincian-filter-tps" onchange="renderRincianPemilih()" class="py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-700">
+                                <option value="ALL">-- Semua TPS (TPS 01 & TPS 02) --</option>
+                                <option value="01">TPS 01</option>
+                                <option value="02">TPS 02</option>
+                            </select>
+                            <select id="rincian-filter-status" onchange="renderRincianPemilih()" class="py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="ALL">-- Semua Status Pemilih --</option>
+                                <option value="Pemilih">Khusus Pemilih</option>
+                                <option value="Bukan Pemilih">Khusus Bukan Pemilih</option>
+                            </select>
+                            <input type="text" id="rincian-search" onkeyup="renderRincianPemilih()" placeholder="Cari Keterangan..." class="py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button onclick="exportRincianToPDF()" class="py-2 px-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-file-pdf"></i>
+                                <span>Download PDF (Landscape)</span>
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Container Tabel TPS 01 dan TPS 02 -->
+                    <div id="rincian-tables-container" class="space-y-6"></div>
                 </div>
             </main>
         </div>
@@ -484,6 +494,63 @@
         let chartUmurInstance = null;
         let chartKeteranganInstance = null;
 
+        // =========================================
+        // FUNGSI CACHE LOCALSTORAGE IMPLEMENTATION
+        // =========================================
+        function saveCacheData(data) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+                localStorage.setItem(CACHE_TIME_KEY, new Date().getTime().toString());
+                updateCacheBadge();
+            } catch (e) {
+                console.warn("Gagal menyimpan data ke cache lokal:", e);
+            }
+        }
+
+        function loadCacheData() {
+            try {
+                const cachedStr = localStorage.getItem(CACHE_KEY);
+                if (cachedStr) {
+                    const parsed = JSON.parse(cachedStr);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {
+                console.warn("Gagal membaca cache lokal:", e);
+            }
+            return null;
+        }
+
+        function getCacheTimestamp() {
+            return localStorage.getItem(CACHE_TIME_KEY);
+        }
+
+        function updateCacheBadge() {
+            const badgeEl = document.getElementById('cache-status-badge');
+            const textEl = document.getElementById('cache-time-text');
+            const timestamp = getCacheTimestamp();
+
+            if (!badgeEl || !textEl) return;
+
+            if (timestamp) {
+                const date = new Date(parseInt(timestamp, 10));
+                const hoursStr = String(date.getHours()).padStart(2, '0');
+                const minsStr = String(date.getMinutes()).padStart(2, '0');
+                textEl.innerText = `Cache: ${hoursStr}:${minsStr}`;
+                badgeEl.title = `Data diambil dari cache lokal (${date.toLocaleString('id-ID')})`;
+                badgeEl.classList.remove('hidden');
+            } else {
+                badgeEl.classList.add('hidden');
+            }
+        }
+
+        function clearAppCache() {
+            localStorage.removeItem(CACHE_KEY);
+            localStorage.removeItem(CACHE_TIME_KEY);
+            updateCacheBadge();
+            showToast("🧹 Cache lokal berhasil dibersihkan.");
+            fetchDataFromSheet(true);
+        }
+
         window.onload = function() {
             if (sessionStorage.getItem('isLoggedIn') === 'true') {
                 unlockApplication();
@@ -503,7 +570,6 @@
             const rawInput = input.value.trim();
             const inputHash = await hashString(rawInput);
 
-            // Verifikasi langsung dengan kata sandi default '040487' maupun enkripsi HASH SHA-256
             if (rawInput === "040487" || (inputHash && inputHash === APP_PASSWORD_HASH)) {
                 sessionStorage.setItem('isLoggedIn', 'true');
                 if (errorMsg) errorMsg.classList.add('hidden');
@@ -550,8 +616,8 @@
             document.body.classList.remove('overflow-hidden');
 
             populateRtOptions();
-            fetchDataFromSheet();
             initCharts();
+            fetchDataFromSheet(false); // Caching Stale-While-Revalidate strategy
         }
 
         function handleLogout() {
@@ -656,24 +722,19 @@
             }
         }
 
-        // [PERBAIKAN] Fungsi untuk membaca format tanggal dengan lebih pintar
         function formatDateIndo(dateStr) {
             if (!dateStr || dateStr === '-') return '-';
             try {
                 let str = String(dateStr).trim();
-                // Jika formatnya ISO String e.g. 2024-01-20T17:00:00Z
                 if (str.includes('T')) {
                     str = str.split('T')[0];
                 }
                 
                 const parts = str.split(/[-/]/);
                 if (parts.length === 3) {
-                    // Deteksi jika parts[0] adalah YYYY (format YYYY-MM-DD)
                     if (parts[0].length === 4) {
                         return `${parts[2]}/${parts[1]}/${parts[0]}`;
-                    } 
-                    // Deteksi jika parts[2] adalah YYYY (format DD-MM-YYYY atau DD/MM/YYYY)
-                    else if (parts[2].length === 4) {
+                    } else if (parts[2].length === 4) {
                         return `${parts[0]}/${parts[1]}/${parts[2]}`;
                     }
                 }
@@ -693,34 +754,28 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // [PERBAIKAN] Fungsi logika usia untuk membaca format DD-MM-YYYY tanpa memunculkan Invalid Date / Usia 0
         function calculateAge(birthDateStr) {
             if (!birthDateStr || birthDateStr === '-') return 0;
             try {
                 let str = String(birthDateStr).trim();
                 let birth;
                 
-                // Ekstrak string jika ada format ISO time (T00:00:00Z)
                 if (str.includes('T')) {
                     str = str.split('T')[0];
                 }
                 
-                // Gunakan regex agar mendukung delimiter "-" dan "/"
                 const parts = str.split(/[-/]/);
                 
                 if (parts.length === 3) {
                     if (parts[0].length === 4) {
-                        // Format: YYYY-MM-DD
                         birth = new Date(parts[0], parseInt(parts[1]) - 1, parts[2]);
                     } else if (parts[2].length === 4) {
-                        // Format: DD-MM-YYYY atau DD/MM/YYYY (Sangat Umum Di Indonesia/Google Sheets)
                         birth = new Date(parts[2], parseInt(parts[1]) - 1, parts[0]);
                     } else {
-                        // Fallback jika aneh
                         birth = new Date(str);
                     }
                 } else {
-                    birth = new Date(str); // Fallback ke parsing default JS
+                    birth = new Date(str);
                 }
 
                 if (isNaN(birth.getTime())) return 0;
@@ -739,7 +794,6 @@
             }
         }
 
-        // [BARU] Fungsi wrapper pemanggilan usia yang aman untuk digunakan di charts dan tabel
         const getUsiaSafe = (warga) => {
             if (warga.usia !== undefined && warga.usia !== null && String(warga.usia).trim() !== '') {
                 return parseInt(warga.usia, 10);
@@ -747,28 +801,63 @@
             return calculateAge(warga.tanggalLahir);
         };
 
-        function fetchDataFromSheet() {
+        async function fetchDataFromSheet(forceRefresh = false) {
             if (!API_URL || API_URL.includes("YOUR_APPS_SCRIPT")) {
                 showToast("URL Apps Script belum disetel!");
                 return;
             }
-            showToast("Mensinkronkan data dengan Google Sheet...");
-            fetch(API_URL + "?action=get")
-                .then(res => res.json())
-                .then(res => {
-                    if (res.status === "success" && res.data) {
-                        dataWarga = res.data;
-                        populateKeteranganOptions();
-                        filterData();
-                        showToast("Data berhasil disinkronkan dari Sheet!");
-                    } else {
-                        throw new Error(res.message || "Gagal mengambil data");
+
+            let cacheLoaded = false;
+            const cachedData = loadCacheData();
+
+            // 1. TAMPILKAN DARI CACHE DENGAN CEPAT (0ms Delay)
+            if (cachedData && cachedData.length > 0 && !forceRefresh) {
+                dataWarga = cachedData;
+                populateKeteranganOptions();
+                filterData();
+                updateCacheBadge();
+                showToast("⚡ Memuat data cepat dari cache lokal");
+                cacheLoaded = true;
+            }
+
+            // Status Notifikasi Loading
+            if (forceRefresh || !cacheLoaded) {
+                showToast("🔄 Mensinkronkan data dari Google Sheet...");
+            }
+
+            // 2. AMBIL DATA TERBARU DI LATAR BELAKANG (Stale-While-Revalidate)
+            try {
+                const res = await fetch(API_URL + "?action=get");
+                const json = await res.json();
+
+                if (json.status === "success" && json.data) {
+                    const freshData = json.data;
+                    const isDataChanged = JSON.stringify(freshData) !== JSON.stringify(dataWarga);
+
+                    // Update state & simpan cache baru
+                    dataWarga = freshData;
+                    saveCacheData(freshData);
+                    populateKeteranganOptions();
+                    filterData();
+
+                    if (forceRefresh) {
+                        showToast("✅ Data berhasil disinkronkan dari server!");
+                    } else if (isDataChanged && cacheLoaded) {
+                        showToast("✨ Data terbaru diperbarui di latar belakang!");
+                    } else if (!cacheLoaded) {
+                        showToast("✅ Data berhasil dimuat!");
                     }
-                })
-                .catch(err => {
-                    console.error("Gagal sinkron:", err);
-                    showToast("Gagal terhubung ke Google Sheet.");
-                });
+                } else {
+                    throw new Error(json.message || "Gagal mengambil data");
+                }
+            } catch (err) {
+                console.error("Gagal sinkron:", err);
+                if (!cacheLoaded) {
+                    showToast("❌ Gagal terhubung ke Google Sheet.");
+                } else {
+                    showToast("⚠️ Menggunakan data cache (Gagal terhubung ke server).");
+                }
+            }
         }
 
         function populateKeteranganOptions() {
@@ -853,14 +942,19 @@
             }
         }
 
-        function renderRincianPemilih() {
-            const headerEl = document.getElementById('rincian-table-header');
-            const bodyEl = document.getElementById('rincian-table-body');
-            const footerEl = document.getElementById('rincian-table-footer');
+        function normalizeTps(tps) {
+            if (!tps) return '';
+            const num = String(tps).replace(/\D/g, '');
+            if (num) return String(parseInt(num, 10)).padStart(2, '0');
+            return String(tps).trim();
+        }
 
-            if (!headerEl || !bodyEl || !footerEl) return;
+        function renderRincianPemilih() {
+            const container = document.getElementById('rincian-tables-container');
+            if (!container) return;
 
             const statusFilter = document.getElementById('rincian-filter-status')?.value || 'ALL';
+            const tpsFilter = document.getElementById('rincian-filter-tps')?.value || 'ALL';
             const searchVal = document.getElementById('rincian-search')?.value.toLowerCase().trim() || '';
 
             let sourceData = dataWarga;
@@ -868,75 +962,106 @@
                 sourceData = dataWarga.filter(w => w.statusPemilih === statusFilter);
             }
 
-            const ketMap = {};
-            sourceData.forEach(w => {
-                let ket = (w.keterangan || '').trim();
-                if (!ket) ket = '(Tanpa Keterangan)';
+            let tpsList = ['01', '02'];
+            if (tpsFilter === '01') tpsList = ['01'];
+            else if (tpsFilter === '02') tpsList = ['02'];
 
-                if (searchVal && !ket.toLowerCase().includes(searchVal)) return;
+            let fullHtml = '';
 
-                if (!ketMap[ket]) {
-                    ketMap[ket] = new Array(37).fill(0);
+            tpsList.forEach(tpsKey => {
+                const tpsData = sourceData.filter(w => normalizeTps(w.tps) === tpsKey);
+
+                const ketMap = {};
+                tpsData.forEach(w => {
+                    let ket = (w.keterangan || '').trim();
+                    if (!ket) ket = '(Tanpa Keterangan)';
+
+                    if (searchVal && !ket.toLowerCase().includes(searchVal)) return;
+
+                    if (!ketMap[ket]) {
+                        ketMap[ket] = new Array(37).fill(0);
+                    }
+
+                    const rtNum = parseInt(w.rt, 10);
+                    if (rtNum >= 1 && rtNum <= 36) {
+                        ketMap[ket][rtNum]++;
+                        ketMap[ket][0]++;
+                    }
+                });
+
+                const sortedKets = Object.keys(ketMap).sort((a, b) => ketMap[b][0] - ketMap[a][0]);
+                const colTotals = new Array(37).fill(0);
+
+                let tableHeaderHtml = `<th class="px-3 py-3 text-center sticky left-0 z-20 bg-slate-900 text-white border border-black shadow-md w-10">NO</th>`;
+                tableHeaderHtml += `<th class="px-4 py-3 text-left sticky left-10 z-20 bg-slate-900 text-white border border-black shadow-md min-w-[180px]">KETERANGAN</th>`;
+                for (let i = 1; i <= 36; i++) {
+                    tableHeaderHtml += `<th class="px-2 py-3 text-center border border-black min-w-[55px]">RT ${String(i).padStart(3, '0')}</th>`;
+                }
+                tableHeaderHtml += `<th class="px-4 py-3 text-center border border-black bg-indigo-950 text-indigo-200 min-w-[80px]">TOTAL</th>`;
+
+                let tableBodyHtml = '';
+
+                if (sortedKets.length === 0) {
+                    tableBodyHtml = `<tr><td colspan="39" class="px-6 py-8 text-center text-slate-500 border border-black">Tidak ada data rincian keterangan untuk TPS ${tpsKey}.</td></tr>`;
+                } else {
+                    sortedKets.forEach((ket, idx) => {
+                        const rowData = ketMap[ket];
+                        colTotals[0] += rowData[0];
+
+                        tableBodyHtml += `<tr class="hover:bg-slate-100 transition">`;
+                        tableBodyHtml += `<td class="px-3 py-2.5 text-center font-semibold text-slate-800 sticky left-0 bg-white z-10 border border-black">${idx + 1}</td>`;
+                        tableBodyHtml += `<td class="px-4 py-2.5 font-semibold text-slate-900 sticky left-10 bg-white z-10 border border-black truncate">${escapeHtml(ket)}</td>`;
+
+                        for (let rt = 1; rt <= 36; rt++) {
+                            const count = rowData[rt];
+                            colTotals[rt] += count;
+                            const badge = count > 0 
+                                ? `<span class="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900">${count}</span>` 
+                                : `<span class="text-slate-400">-</span>`;
+                            tableBodyHtml += `<td class="px-2 py-2.5 text-center border border-black">${badge}</td>`;
+                        }
+
+                        tableBodyHtml += `<td class="px-4 py-2.5 text-center font-bold text-indigo-900 bg-indigo-50 border border-black">${rowData[0]}</td>`;
+                        tableBodyHtml += `</tr>`;
+                    });
                 }
 
-                const rtNum = parseInt(w.rt, 10);
-                if (rtNum >= 1 && rtNum <= 36) {
-                    ketMap[ket][rtNum]++;
-                    ketMap[ket][0]++;
-                }
-            });
-
-            let headerHtml = `<th class="px-3 py-3 text-center sticky left-0 z-20 bg-slate-900 text-white border border-black shadow-md w-10">NO</th>`;
-            headerHtml += `<th class="px-4 py-3 text-left sticky left-10 z-20 bg-slate-900 text-white border border-black shadow-md min-w-[180px]">KETERANGAN</th>`;
-            for (let i = 1; i <= 36; i++) {
-                headerHtml += `<th class="px-2 py-3 text-center border border-black min-w-[55px]">RT ${String(i).padStart(3, '0')}</th>`;
-            }
-            headerHtml += `<th class="px-4 py-3 text-center border border-black bg-indigo-950 text-indigo-200 min-w-[80px]">TOTAL</th>`;
-            headerEl.innerHTML = headerHtml;
-
-            const sortedKets = Object.keys(ketMap).sort((a, b) => ketMap[b][0] - ketMap[a][0]);
-
-            if (sortedKets.length === 0) {
-                bodyEl.innerHTML = `<tr><td colspan="39" class="px-6 py-10 text-center text-slate-500 border border-black">Tidak ada data rincian keterangan yang sesuai.</td></tr>`;
-                footerEl.innerHTML = '';
-                return;
-            }
-
-            const colTotals = new Array(37).fill(0);
-            let bodyHtml = '';
-
-            sortedKets.forEach((ket, idx) => {
-                const rowData = ketMap[ket];
-                colTotals[0] += rowData[0];
-
-                bodyHtml += `<tr class="hover:bg-slate-100 transition">`;
-                bodyHtml += `<td class="px-3 py-2.5 text-center font-semibold text-slate-800 sticky left-0 bg-white z-10 border border-black">${idx + 1}</td>`;
-                bodyHtml += `<td class="px-4 py-2.5 font-semibold text-slate-900 sticky left-10 bg-white z-10 border border-black truncate">${escapeHtml(ket)}</td>`;
-
+                let tableFooterHtml = `<tr>`;
+                tableFooterHtml += `<td colspan="2" class="px-4 py-3 text-right font-extrabold uppercase sticky left-0 z-10 bg-slate-200 text-slate-900 border border-black">TOTAL PER RT:</td>`;
                 for (let rt = 1; rt <= 36; rt++) {
-                    const count = rowData[rt];
-                    colTotals[rt] += count;
-                    const badge = count > 0 
-                        ? `<span class="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-900">${count}</span>` 
-                        : `<span class="text-slate-400">-</span>`;
-                    bodyHtml += `<td class="px-2 py-2.5 text-center border border-black">${badge}</td>`;
+                    tableFooterHtml += `<td class="px-2 py-3 text-center font-bold border border-black text-slate-900">${colTotals[rt] > 0 ? colTotals[rt] : '-'}</td>`;
                 }
+                tableFooterHtml += `<td class="px-4 py-3 text-center font-extrabold text-sm text-indigo-950 bg-indigo-100 border border-black">${colTotals[0]}</td>`;
+                tableFooterHtml += `</tr>`;
 
-                bodyHtml += `<td class="px-4 py-2.5 text-center font-bold text-indigo-900 bg-indigo-50 border border-black">${rowData[0]}</td>`;
-                bodyHtml += `</tr>`;
+                const totalWargaTps = tpsData.length;
+
+                fullHtml += `
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                        <div class="px-4 py-3 bg-indigo-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-indigo-950">
+                            <div class="flex items-center space-x-2">
+                                <span class="bg-amber-400 text-slate-900 text-xs font-extrabold px-2.5 py-1 rounded-md shadow-sm">TPS ${tpsKey}</span>
+                                <h4 class="font-bold text-sm tracking-wide">Tabel Rincian Keterangan Pemilih - TPS ${tpsKey}</h4>
+                            </div>
+                            <div class="text-xs text-indigo-200 font-medium">
+                                Total Warga TPS ${tpsKey}: <span class="font-bold text-white">${totalWargaTps}</span> orang
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto min-h-[220px] relative p-1">
+                            <table class="w-full text-xs text-left text-slate-700 border-collapse border border-black">
+                                <thead class="bg-slate-900 text-white uppercase font-bold text-[11px] tracking-wider sticky top-0 z-10">
+                                    <tr>${tableHeaderHtml}</tr>
+                                </thead>
+                                <tbody>${tableBodyHtml}</tbody>
+                                <tfoot class="bg-slate-100 font-bold border-t-2 border-black text-slate-900">${tableFooterHtml}</tfoot>
+                            </table>
+                        </div>
+                    </div>
+                `;
             });
 
-            bodyEl.innerHTML = bodyHtml;
-
-            let footerHtml = `<tr>`;
-            footerHtml += `<td colspan="2" class="px-4 py-3 text-right font-extrabold uppercase sticky left-0 z-10 bg-slate-200 text-slate-900 border border-black">TOTAL PER RT:</td>`;
-            for (let rt = 1; rt <= 36; rt++) {
-                footerHtml += `<td class="px-2 py-3 text-center font-bold border border-black text-slate-900">${colTotals[rt] > 0 ? colTotals[rt] : '-'}</td>`;
-            }
-            footerHtml += `<td class="px-4 py-3 text-center font-extrabold text-sm text-indigo-950 bg-indigo-100 border border-black">${colTotals[0]}</td>`;
-            footerHtml += `</tr>`;
-
-            footerEl.innerHTML = footerHtml;
+            container.innerHTML = fullHtml;
         }
 
         function renderTable(data) {
@@ -972,8 +1097,6 @@
 
                 const isPemilih = warga.statusPemilih === 'Pemilih';
                 const ketVal = warga.keterangan || '';
-                
-                // Menggunakan fungsi getUsiaSafe untuk memastikan umur dikalkulasi secara benar
                 const usiaVal = getUsiaSafe(warga);
 
                 html += `
@@ -1006,6 +1129,41 @@
             renderPagination(totalItems, startIndex + 1, endIndex, totalPages);
         }
 
+        function setStatusPemilih(id, newStatus) {
+            const warga = dataWarga.find(w => String(w.id) === String(id));
+            if (!warga) return;
+
+            warga.statusPemilih = newStatus;
+            saveCacheData(dataWarga); // Simpan langsung ke cache lokal
+            renderDashboard();
+            showToast(`Status <strong>${escapeHtml(warga.nama)}</strong> diubah menjadi <strong>${newStatus}</strong>`);
+
+            if (API_URL && !API_URL.includes("YOUR_APPS_SCRIPT")) {
+                fetch(API_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "updateStatus", id: id, statusPemilih: newStatus }) 
+                }).catch(err => console.error("Error updateStatus:", err));
+            }
+        }
+
+        function updateKeterangan(id, newKeterangan) {
+            const warga = dataWarga.find(w => String(w.id) === String(id));
+            if (!warga) return;
+
+            warga.keterangan = newKeterangan;
+            saveCacheData(dataWarga); // Simpan langsung ke cache lokal
+            populateKeteranganOptions();
+            renderDashboard();
+            showToast(`Keterangan <strong>${escapeHtml(warga.nama)}</strong> diperbarui`);
+
+            if (API_URL && !API_URL.includes("YOUR_APPS_SCRIPT")) {
+                fetch(API_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "updateKeterangan", id: id, keterangan: newKeterangan }) 
+                }).catch(err => console.error("Error updateKeterangan:", err));
+            }
+        }
+
         function openDeleteModal(id) {
             deleteTargetId = id;
             const warga = dataWarga.find(w => String(w.id) === String(id));
@@ -1028,6 +1186,7 @@
             const targetName = warga ? warga.nama : 'Warga';
 
             dataWarga = dataWarga.filter(w => String(w.id) !== String(deleteTargetId));
+            saveCacheData(dataWarga); // Simpan langsung ke cache lokal
             closeDeleteModal();
 
             populateKeteranganOptions();
@@ -1042,36 +1201,38 @@
             }
         }
 
-        function setStatusPemilih(id, newStatus) {
-            const warga = dataWarga.find(w => String(w.id) === String(id));
-            if (!warga) return;
+        function saveWarga(event) {
+            event.preventDefault();
+            const getVal = (id) => (document.getElementById(id)?.value || '').trim();
 
-            warga.statusPemilih = newStatus;
-            renderDashboard();
-            showToast(`Status <strong>${escapeHtml(warga.nama)}</strong> diubah menjadi <strong>${newStatus}</strong>`);
+            const newWarga = {
+                id: new Date().getTime(),
+                kk: getVal('add-kk'),
+                nik: getVal('add-nik'),
+                nama: getVal('add-nama').toUpperCase(),
+                tempatLahir: getVal('add-tempat').toUpperCase(),
+                tanggalLahir: getVal('add-tanggal'),
+                jk: getVal('add-jk'),
+                rt: getVal('add-rt'),
+                tps: getVal('add-tps'),
+                statusPemilih: getVal('add-status') || 'Bukan Pemilih',
+                keterangan: getVal('add-keterangan')
+            };
 
-            if (API_URL && !API_URL.includes("YOUR_APPS_SCRIPT")) {
-                fetch(API_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "updateStatus", id: id, statusPemilih: newStatus }) 
-                }).catch(err => console.error("Error updateStatus:", err));
-            }
-        }
+            newWarga.usia = calculateAge(newWarga.tanggalLahir);
 
-        function updateKeterangan(id, newKeterangan) {
-            const warga = dataWarga.find(w => String(w.id) === String(id));
-            if (!warga) return;
-
-            warga.keterangan = newKeterangan;
+            dataWarga.push(newWarga);
+            saveCacheData(dataWarga); // Simpan langsung ke cache lokal
+            closeAddWargaModal();
             populateKeteranganOptions();
-            renderDashboard();
-            showToast(`Keterangan <strong>${escapeHtml(warga.nama)}</strong> diperbarui`);
+            filterData();
+            showToast(`Warga <strong>${escapeHtml(newWarga.nama)}</strong> berhasil ditambahkan!`);
 
             if (API_URL && !API_URL.includes("YOUR_APPS_SCRIPT")) {
                 fetch(API_URL, { 
                     method: "POST", 
-                    body: JSON.stringify({ action: "updateKeterangan", id: id, keterangan: newKeterangan }) 
-                }).catch(err => console.error("Error updateKeterangan:", err));
+                    body: JSON.stringify({ action: "add", ...newWarga }) 
+                }).catch(err => console.error("Error saveWarga:", err));
             }
         }
 
@@ -1379,40 +1540,6 @@
             toggleAddKeteranganField();
         }
 
-        function saveWarga(event) {
-            event.preventDefault();
-            const getVal = (id) => (document.getElementById(id)?.value || '').trim();
-
-            const newWarga = {
-                id: new Date().getTime(),
-                kk: getVal('add-kk'),
-                nik: getVal('add-nik'),
-                nama: getVal('add-nama').toUpperCase(),
-                tempatLahir: getVal('add-tempat').toUpperCase(),
-                tanggalLahir: getVal('add-tanggal'),
-                jk: getVal('add-jk'),
-                rt: getVal('add-rt'),
-                tps: getVal('add-tps'),
-                statusPemilih: getVal('add-status') || 'Bukan Pemilih',
-                keterangan: getVal('add-keterangan')
-            };
-
-            newWarga.usia = calculateAge(newWarga.tanggalLahir);
-
-            dataWarga.push(newWarga);
-            closeAddWargaModal();
-            populateKeteranganOptions();
-            filterData();
-            showToast(`Warga <strong>${escapeHtml(newWarga.nama)}</strong> berhasil ditambahkan!`);
-
-            if (API_URL && !API_URL.includes("YOUR_APPS_SCRIPT")) {
-                fetch(API_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify({ action: "add", ...newWarga }) 
-                }).catch(err => console.error("Error saveWarga:", err));
-            }
-        }
-
         function exportDataToPDF() {
             if (filteredData.length === 0) { 
                 showToast('Tidak ada data untuk diekspor!'); 
@@ -1451,7 +1578,7 @@
                         item.nama || '-', 
                         item.tempatLahir || '-', 
                         formatDateIndo(item.tanggalLahir), 
-                        getUsiaSafe(item), // Pemanggilan helper logika umur yang aman di PDF Export
+                        getUsiaSafe(item),
                         item.jk || '-', 
                         item.rt || '-', 
                         item.tps || '-', 
@@ -1489,76 +1616,27 @@
                 const doc = new jsPDFClass({ orientation: 'landscape', unit: 'mm', format: 'a4' });
                 
                 const statusFilter = document.getElementById('rincian-filter-status')?.value || 'ALL';
+                const tpsFilter = document.getElementById('rincian-filter-tps')?.value || 'ALL';
                 const searchVal = document.getElementById('rincian-search')?.value.toLowerCase().trim() || '';
 
                 let statusText = "Semua Status Pemilih";
                 if (statusFilter === "Pemilih") statusText = "Khusus Pemilih";
                 if (statusFilter === "Bukan Pemilih") statusText = "Khusus Bukan Pemilih";
 
-                doc.setFontSize(13);
-                doc.setFont("helvetica", "bold");
-                doc.text("TABEL RINCIAN KETERANGAN PEMILIH PER RT (RT 001 - RT 036)", 148.5, 12, { align: 'center' });
-                
-                doc.setFontSize(8);
-                doc.setFont("helvetica", "normal");
-                doc.text(`Filter Status: ${statusText}  |  Tanggal Unduh: ${new Date().toLocaleDateString('id-ID')}`, 148.5, 17, { align: 'center' });
+                let sourceData = dataWarga;
+                if (statusFilter !== 'ALL') {
+                    sourceData = dataWarga.filter(w => w.statusPemilih === statusFilter);
+                }
+
+                let tpsList = ['01', '02'];
+                if (tpsFilter === '01') tpsList = ['01'];
+                else if (tpsFilter === '02') tpsList = ['02'];
 
                 const headRow = ["NO", "KETERANGAN"];
                 for (let i = 1; i <= 36; i++) {
                     headRow.push(`RT${String(i).padStart(3, '0')}`);
                 }
                 headRow.push("TOTAL");
-
-                let sourceData = dataWarga;
-                if (statusFilter !== 'ALL') {
-                    sourceData = dataWarga.filter(w => w.statusPemilih === statusFilter);
-                }
-
-                const ketMap = {};
-                sourceData.forEach(w => {
-                    let ket = (w.keterangan || '').trim();
-                    if (!ket) ket = '(Tanpa Keterangan)';
-                    if (searchVal && !ket.toLowerCase().includes(searchVal)) return;
-
-                    if (!ketMap[ket]) {
-                        ketMap[ket] = new Array(37).fill(0);
-                    }
-
-                    const rtNum = parseInt(w.rt, 10);
-                    if (rtNum >= 1 && rtNum <= 36) {
-                        ketMap[ket][rtNum]++;
-                        ketMap[ket][0]++;
-                    }
-                });
-
-                const sortedKets = Object.keys(ketMap).sort((a, b) => ketMap[b][0] - ketMap[a][0]);
-                const colTotals = new Array(37).fill(0);
-                const bodyRows = [];
-
-                sortedKets.forEach((ket, idx) => {
-                    const rowData = ketMap[ket];
-                    colTotals[0] += rowData[0];
-
-                    const row = [idx + 1, ket];
-                    for (let rt = 1; rt <= 36; rt++) {
-                        const count = rowData[rt];
-                        colTotals[rt] += count;
-                        row.push(count > 0 ? String(count) : '-');
-                    }
-                    row.push(String(rowData[0]));
-                    bodyRows.push(row);
-                });
-
-                const footRow = ["", "TOTAL PER RT:"];
-                for (let rt = 1; rt <= 36; rt++) {
-                    footRow.push(colTotals[rt] > 0 ? String(colTotals[rt]) : '-');
-                }
-                footRow.push(String(colTotals[0]));
-
-                if (bodyRows.length === 0) {
-                    showToast('Tidak ada data rincian untuk diekspor!');
-                    return;
-                }
 
                 const columnStyles = {
                     0: { cellWidth: 8, halign: 'center' },
@@ -1569,41 +1647,102 @@
                 }
                 columnStyles[38] = { cellWidth: 16, halign: 'center', fontStyle: 'bold' };
 
-                doc.autoTable({
-                    head: [headRow],
-                    body: bodyRows,
-                    foot: [footRow],
-                    startY: 21,
-                    margin: { top: 21, left: 8, right: 8, bottom: 10 },
-                    styles: { 
-                        fontSize: 5.5, 
-                        cellPadding: 1.2, 
-                        lineColor: [0, 0, 0], 
-                        lineWidth: 0.15,
-                        textColor: [15, 23, 42]
-                    },
-                    headStyles: { 
-                        fillColor: [15, 23, 42], 
-                        textColor: [255, 255, 255], 
-                        fontStyle: 'bold', 
-                        halign: 'center',
-                        fontSize: 5.2,
-                        valign: 'middle'
-                    },
-                    footStyles: { 
-                        fillColor: [226, 232, 240], 
-                        textColor: [15, 23, 42], 
-                        fontStyle: 'bold', 
-                        halign: 'center',
-                        fontSize: 5.5,
-                        valign: 'middle'
-                    },
-                    columnStyles: columnStyles,
-                    theme: 'grid'
+                tpsList.forEach((tpsKey, tpsIdx) => {
+                    if (tpsIdx > 0) {
+                        doc.addPage();
+                    }
+
+                    doc.setFontSize(12);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(`TABEL RINCIAN KETERANGAN PEMILIH - TPS ${tpsKey}`, 148.5, 12, { align: 'center' });
+                    
+                    doc.setFontSize(8);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(`Filter Status: ${statusText}  |  Tanggal Unduh: ${new Date().toLocaleDateString('id-ID')}`, 148.5, 17, { align: 'center' });
+
+                    const tpsData = sourceData.filter(w => normalizeTps(w.tps) === tpsKey);
+
+                    const ketMap = {};
+                    tpsData.forEach(w => {
+                        let ket = (w.keterangan || '').trim();
+                        if (!ket) ket = '(Tanpa Keterangan)';
+                        if (searchVal && !ket.toLowerCase().includes(searchVal)) return;
+
+                        if (!ketMap[ket]) {
+                            ketMap[ket] = new Array(37).fill(0);
+                        }
+
+                        const rtNum = parseInt(w.rt, 10);
+                        if (rtNum >= 1 && rtNum <= 36) {
+                            ketMap[ket][rtNum]++;
+                            ketMap[ket][0]++;
+                        }
+                    });
+
+                    const sortedKets = Object.keys(ketMap).sort((a, b) => ketMap[b][0] - ketMap[a][0]);
+                    const colTotals = new Array(37).fill(0);
+                    const bodyRows = [];
+
+                    sortedKets.forEach((ket, idx) => {
+                        const rowData = ketMap[ket];
+                        colTotals[0] += rowData[0];
+
+                        const row = [idx + 1, ket];
+                        for (let rt = 1; rt <= 36; rt++) {
+                            const count = rowData[rt];
+                            colTotals[rt] += count;
+                            row.push(count > 0 ? String(count) : '-');
+                        }
+                        row.push(String(rowData[0]));
+                        bodyRows.push(row);
+                    });
+
+                    const footRow = ["", "TOTAL PER RT:"];
+                    for (let rt = 1; rt <= 36; rt++) {
+                        footRow.push(colTotals[rt] > 0 ? String(colTotals[rt]) : '-');
+                    }
+                    footRow.push(String(colTotals[0]));
+
+                    if (bodyRows.length === 0) {
+                        bodyRows.push(["-", `Tidak ada data rincian untuk TPS ${tpsKey}`, ...new Array(37).fill("-")]);
+                    }
+
+                    doc.autoTable({
+                        head: [headRow],
+                        body: bodyRows,
+                        foot: [footRow],
+                        startY: 21,
+                        margin: { top: 21, left: 8, right: 8, bottom: 10 },
+                        styles: { 
+                            fontSize: 5.5, 
+                            cellPadding: 1.2, 
+                            lineColor: [0, 0, 0], 
+                            lineWidth: 0.15,
+                            textColor: [15, 23, 42]
+                        },
+                        headStyles: { 
+                            fillColor: [15, 23, 42], 
+                            textColor: [255, 255, 255], 
+                            fontStyle: 'bold', 
+                            halign: 'center',
+                            fontSize: 5.2,
+                            valign: 'middle'
+                        },
+                        footStyles: { 
+                            fillColor: [226, 232, 240], 
+                            textColor: [15, 23, 42], 
+                            fontStyle: 'bold', 
+                            halign: 'center',
+                            fontSize: 5.5,
+                            valign: 'middle'
+                        },
+                        columnStyles: columnStyles,
+                        theme: 'grid'
+                    });
                 });
 
-                doc.save(`rincian_pemilih_rt_${new Date().toISOString().slice(0,10)}.pdf`);
-                showToast('PDF Rincian Pemilih berhasil diunduh!');
+                doc.save(`rincian_pemilih_tps_${new Date().toISOString().slice(0,10)}.pdf`);
+                showToast('PDF Rincian Pemilih TPS berhasil diunduh!');
             } catch (e) {
                 console.error("PDF Rincian Export Error:", e);
                 showToast('Gagal membuat file PDF Rincian.');
